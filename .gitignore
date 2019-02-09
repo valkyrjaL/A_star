@@ -1,2 +1,6 @@
 
 code/planner\.mexw64
+
+code/minHeap\.cpp
+
+*.exe

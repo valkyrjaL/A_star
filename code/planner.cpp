@@ -3,9 +3,14 @@
  * planner.c
  *
  *=================================================================*/
-
+ 
 #include <math.h>
 #include "mex.h"
+#include <stdlib.h>
+#include <string.h>
+#include "minHeap.h"
+#include <stdio.h>
+#include <algorithm>
 
 
 /* Input Arguments */
@@ -50,15 +55,85 @@ static void planner(
     //8-connected grid
     int dX[NUMOFDIRS] = {-1, -1, -1,  0,  0,  1, 1, 1};    
     int dY[NUMOFDIRS] = {-1,  0,  1, -1,  1, -1, 0, 1};
+	double cost[NUMOFDIRS] = {1.4, 1.0, 1.4, 1.0, 1.0, 1.4, 1.0, 1.4};
     
     printf("call=%d\n", temp);
     temp = temp+1;
 	
-
+	MinHeap openList;
+	int cell_size = x_size * y_size;
+	cell* cellDetails = new cell[cell_size];
+	// Initial cellDetails
+	for(int i=0; i<cell_size; i++){
+		cellDetails[i].f = FLT_MAX;
+		cellDetails[i].g = FLT_MAX;
+		cellDetails[i].h = FLT_MAX;
+		cellDetails[i].closed = false;
+	}
+	// Initial start state and add start into open list
+	int robotIndex = GETMAPINDEX(robotposeX,robotposeY,x_size,y_size);
+	int targetIndex = GETMAPINDEX(goalposeX,goalposeY,x_size,y_size);
+	cellDetails[robotIndex].f = 0.0;
+	cellDetails[robotIndex].g = 0.0;
+	cellDetails[robotIndex].h = 0.0;
+	cellDetails[robotIndex].x = robotposeX;
+	cellDetails[robotIndex].y = robotposeY;
+	cellDetails[robotIndex].predecessor = nullptr;
+	openList.add(cellDetails[robotIndex]);
+	// printf("%f", openList.peek().f);
+	int expandX, expandY, expandIndex;
     
+	while((openList.heapCount() != 0) && (cellDetails[targetIndex].closed == false)){
+		cell tempCell = openList.pop();
+		tempCell.closed = true;
+		expandX = tempCell.x;
+		expandY = tempCell.y;
+		expandIndex = GETMAPINDEX(expandX,expandY,x_size,y_size);
+		
+		for(int dir = 0; dir < NUMOFDIRS; dir++)
+		{
+			int newx = expandX + dX[dir];
+			int newy = expandY + dY[dir];
+			int successor = GETMAPINDEX(newx,newy,x_size,y_size);
+    
+			if (newx >= 1 && newx <= x_size && newy >= 1 && newy <= y_size){//if valid              
+				if ((int)map[successor] == 0){ //if free
+					if(!cellDetails[successor].closed){
+						if(cellDetails[successor].g > (cellDetails[expandIndex].g + cost[dir])){
+							cellDetails[successor].g = cellDetails[expandIndex].g + cost[dir];
+							cellDetails[successor].h = (double)sqrt(((newx-goalposeX)*(newx-goalposeX) 
+														+ (newy-goalposeY)*(newy-goalposeY)));
+							cellDetails[successor].f = cellDetails[successor].g + cellDetails[successor].h;
+							cellDetails[successor].x = newx;
+							cellDetails[successor].y = newy;
+							cellDetails[successor].predecessor = &cellDetails[expandIndex];
+							openList.add(cellDetails[successor]);
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// backtracking
+	cell backCell = cellDetails[targetIndex];
+	cell *startCell = &cellDetails[robotIndex];
+	while(backCell.predecessor != startCell){
+		backCell = *backCell.predecessor;
+	}
+	// printf("x: %d", backCell.x - robotposeX);
+	// printf("y: %d", backCell.y - robotposeY);
+	*p_actionX = backCell.x - robotposeX;
+	*p_actionY = backCell.y - robotposeY;
+	
+	if(cellDetails != nullptr){
+		delete[] cellDetails;
+		cellDetails = nullptr;
+	}
     //printf("robot: %d %d; ", robotposeX, robotposeY);
     //printf("goal: %d %d;", goalposeX, goalposeY);
     
+	/*
 	//for now greedily move towards the target, 
 	//but this is where you can put your planner 
 	double mindisttotarget = 1000000;
@@ -71,7 +146,7 @@ static void planner(
                
               if ((int)map[GETMAPINDEX(newx,newy,x_size,y_size)] == 0){ //if free
                 double disttotarget = (double)sqrt(((newx-goalposeX)*(newx-goalposeX) + (newy-goalposeY)*(newy-goalposeY)));
-                if(disttotarget < mindisttotarget){
+				if(disttotarget < mindisttotarget){
                   mindisttotarget = disttotarget;
                   *p_actionX = dX[dir];
                   *p_actionY = dY[dir];
@@ -79,9 +154,10 @@ static void planner(
               }
     	   }
 	}
+	*/
     //printf("action: %d %d; \n", *p_actionX, *p_actionY);
 
-    
+	
     return;
 }
 
@@ -144,5 +220,82 @@ void mexFunction( int nlhs, mxArray *plhs[],
 
 
 
+/*--------------------------------------*/
 
+MinHeap::MinHeap(){
+	capacity = 10;
+	size = 0;
+	items = new cell[capacity];
+}
 
+MinHeap::~MinHeap(){
+	if(items != nullptr){
+		delete[] items;
+		items = nullptr;
+	}
+}
+
+void MinHeap::swap(int indexOne, int indexTwo){
+	cell temp = items[indexOne];
+	items[indexOne] = items[indexTwo];
+	items[indexTwo] = temp;
+}
+
+/* If the array was full, increase the array with capacity.*/
+void MinHeap::ensureExtraCapacity(){
+	if(size == capacity){
+		//copy items to a new array
+		cell *temp = new cell[capacity * 2];
+		std::copy(items, items + capacity, temp);
+		delete[] items;
+		items = temp;
+		capacity *= 2;
+	}
+}
+
+	
+void MinHeap::heapifyUp(){
+	int newIndex = size-1;
+	while(hasParent(newIndex) && (parent(newIndex).f > items[newIndex].f)){
+		swap(getParentIndex(newIndex), newIndex);
+		newIndex = getParentIndex(newIndex);
+	}
+}
+
+void MinHeap::heapifyDown(){
+	int index = 0;
+	while(hasLeftChild(index)){
+		int smallerChildIndex = getLeftChildIndex(index);
+		if(hasRightChild(index) && (leftChild(index).f > rightChild(index).f)){
+			smallerChildIndex = getRightChildIndex(index);
+		}
+		if(items[index].f > items[smallerChildIndex].f){
+			swap(index, smallerChildIndex);
+			index = smallerChildIndex;
+		}else{
+			break;
+		}
+	}
+}
+
+cell MinHeap::pop(){
+	// if(size == 0) return -1;	// throw exception
+	cell item = items[0];
+	items[0] = items[size-1];
+	size --;
+	heapifyDown();
+	return item;
+}
+
+void MinHeap::add(cell item){
+	ensureExtraCapacity();
+	items[size] = item;
+	size++;
+	heapifyUp();
+}
+
+/* Peek the first node without removing it.*/
+cell MinHeap::peek(){
+	// if(size == 0) return -1;	// throw exception
+	return items[0];
+}
