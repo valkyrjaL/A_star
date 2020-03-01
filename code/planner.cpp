@@ -1,6 +1,8 @@
 /*=================================================================
  *
  * planner.c
+ * Andrew ID: chingtil
+ * 2019/02/10
  *
  *=================================================================*/
  
@@ -11,6 +13,8 @@
 #include "minHeap.h"
 #include <stdio.h>
 #include <algorithm>
+// #include <chrono>
+// using namespace std;
 
 
 /* Input Arguments */
@@ -51,6 +55,7 @@ static void planner(
             char *p_actionY
 		   )
 {
+	// auto start = chrono::steady_clock::now();
 
     //8-connected grid
     int dX[NUMOFDIRS] = {-1, -1, -1,  0,  0,  1, 1, 1};    
@@ -60,14 +65,15 @@ static void planner(
     printf("call=%d\n", temp);
     temp = temp+1;
 	
+	// /*
 	MinHeap openList;
 	int cell_size = x_size * y_size;
 	cell* cellDetails = new cell[cell_size];
 	// Initial cellDetails
 	for(int i=0; i<cell_size; i++){
-		cellDetails[i].f = FLT_MAX;
+		// cellDetails[i].f = FLT_MAX;
 		cellDetails[i].g = FLT_MAX;
-		cellDetails[i].h = FLT_MAX;
+		// cellDetails[i].h = FLT_MAX;
 		cellDetails[i].closed = false;
 	}
 	// Initial start state and add start into open list
@@ -75,7 +81,7 @@ static void planner(
 	int targetIndex = GETMAPINDEX(goalposeX,goalposeY,x_size,y_size);
 	cellDetails[robotIndex].f = 0.0;
 	cellDetails[robotIndex].g = 0.0;
-	cellDetails[robotIndex].h = 0.0;
+	// cellDetails[robotIndex].h = 0.0;
 	cellDetails[robotIndex].x = robotposeX;
 	cellDetails[robotIndex].y = robotposeY;
 	cellDetails[robotIndex].predecessor = nullptr;
@@ -99,11 +105,16 @@ static void planner(
 			if (newx >= 1 && newx <= x_size && newy >= 1 && newy <= y_size){//if valid              
 				if ((int)map[successor] == 0){ //if free
 					if(!cellDetails[successor].closed){
-						if(cellDetails[successor].g > (cellDetails[expandIndex].g + cost[dir])){
-							cellDetails[successor].g = cellDetails[expandIndex].g + cost[dir];
-							cellDetails[successor].h = (double)sqrt(((newx-goalposeX)*(newx-goalposeX) 
-														+ (newy-goalposeY)*(newy-goalposeY)));
-							cellDetails[successor].f = cellDetails[successor].g + cellDetails[successor].h;
+						double g_temp = cellDetails[expandIndex].g + cost[dir];
+						if(cellDetails[successor].g > g_temp){
+							cellDetails[successor].g = g_temp;
+							// Euclidean Distance
+							// cellDetails[successor].h = (double)sqrt(((newx-goalposeX)*(newx-goalposeX) 
+														// + (newy-goalposeY)*(newy-goalposeY)));
+							// Manhattan Distance
+							// cellDetails[successor].h = abs((newx-goalposeX)) + abs(newy-goalposeY);
+							// cellDetails[successor].f = cellDetails[successor].g + cellDetails[successor].h;
+							cellDetails[successor].f = cellDetails[successor].g + (double)sqrt(((newx-goalposeX)*(newx-goalposeX) + (newy-goalposeY)*(newy-goalposeY)));
 							cellDetails[successor].x = newx;
 							cellDetails[successor].y = newy;
 							cellDetails[successor].predecessor = &cellDetails[expandIndex];
@@ -130,6 +141,10 @@ static void planner(
 		delete[] cellDetails;
 		cellDetails = nullptr;
 	}
+	// auto end = chrono::steady_clock::now();
+	// printf("time: %d ms ", chrono::duration_cast<chrono::milliseconds>(end - start));
+	// */
+	
     //printf("robot: %d %d; ", robotposeX, robotposeY);
     //printf("goal: %d %d;", goalposeX, goalposeY);
     
@@ -154,6 +169,8 @@ static void planner(
               }
     	   }
 	}
+	auto end = chrono::steady_clock::now();
+	printf("time: %d us ", chrono::duration_cast<chrono::microseconds>(end - start));
 	*/
     //printf("action: %d %d; \n", *p_actionX, *p_actionY);
 
@@ -223,7 +240,7 @@ void mexFunction( int nlhs, mxArray *plhs[],
 /*--------------------------------------*/
 
 MinHeap::MinHeap(){
-	capacity = 10;
+	capacity = 100;
 	size = 0;
 	items = new cell[capacity];
 }

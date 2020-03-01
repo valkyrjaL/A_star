@@ -3,7 +3,8 @@
 
 struct cell
 {
-	double f, g, h;
+	// double f, g, h;
+	double f, g;
 	int x, y;
 	bool closed;
 	struct cell *predecessor;
